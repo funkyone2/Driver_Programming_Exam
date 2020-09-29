@@ -9,14 +9,12 @@
 #include <linux/jiffies.h>
 #include <linux/timekeeping.h>
 #include <linux/delay.h>
-#include <linux/time.h>
+#include <linux/string.h>
 
-#define DRIVER_AUTHOR	"Anh Quan"
-#define DRIVER_DESC	"Kiem Tra"
 #define MEM_SIZE	1024
 #define MAGIC_NUMBER	234
-#define CONVERT_BIN_TO_DEC 	_IOR(MAGIC_NUMBER,0,char *)
-#define CONVERT_BIN_TO_OCT 	_IOR(MAGIC_NUMBER,1,char *)
+#define CONVERT_OCT_TO_DEC 	_IOR(MAGIC_NUMBER,0,char *)
+#define CONVERT_OCT_TO_BIN 	_IOR(MAGIC_NUMBER,1,char *)
 #define SHOW_TIME		_IOR(MAGIC_NUMBER,3,char *)
 
 
@@ -24,14 +22,16 @@ static dev_t dev_num;
 static struct class *dev_class;
 static struct cdev *dev_cdev;
 static int flag;
+static int flagWriteOct = 0;
+static int flagConvertOctToDec = 0;
 static char *kernel_buf;
-static char *bin;
 static int dec;
+static char *oct;
+int lenOct;
 static unsigned long start;
 static unsigned long end;
 static struct timespec64 wt_start;
 static struct timespec64 wt_end;
-static int lenBin;
 
 static int dev_open(struct inode *,struct file *);
 static int dev_release(struct inode *,struct file *);
@@ -47,37 +47,64 @@ static int pow(int a,int b){
 	return val;
 }
 
-static int convertBinToDec(void){
-	start = jiffies;
-	ktime_get_coarse_real_ts64(&wt_start);
-	int ret = 0;
-	int i;
-	int n = lenBin;
-	
-	for(i=0;i<n;i++)
-	{
-		ret += (bin[i]-48)*(pow(2,(n-i-1)));
-		//printk("%d - %d",i,bin[i]-48);
-	}
-	
-	//printk("ret - dec : %d",ret);
-	printk("");
-	//mdelay(30);
-	end = jiffies;
-	ktime_get_coarse_real_ts64(&wt_start);
-	return ret;
-}
-
-static char * convertBinToOct(void){
-	char *val = (char *)kmalloc(MEM_SIZE*sizeof(char),GFP_KERNEL);
-	if(dec != 0){
-		sprintf(val,"%o",dec);
+static void convertOctToDec(char *ret){
+	if(flagWriteOct == 0){
+		ret = "Khong co du lieu !!!!!\n";
 	}
 	else{
-		dec = convertBinToDec();
-		sprintf(val,"%o",dec);
+		int i;
+		int n = lenOct;
+		dec = 0;
+		for(i=0;i<n;i++)
+		{
+			dec += (oct[i]-48)*(pow(8,(n-i-1)));
+			//printk("%d - %d",i,bin[i]-48);
+		}
+	
+		printk("Dec : %d",dec);
+		sprintf(ret,"%d",dec);
+		printk("");
+		flagConvertOctToDec = 1;
 	}
-	return val;
+
+	
+}
+
+static void convertOctToBin(char *ret){
+	if(flagWriteOct == 0){
+		ret = "Chua co du lieu !!!!!\n";
+	}else{
+		if(flagConvertOctToDec == 0){
+			char *temp = kmalloc(MEM_SIZE*sizeof(char),GFP_KERNEL);
+			convertOctToDec(temp);	
+			printk("Oct to Dec in Bin !!!!");
+		}
+		char bin_tmp[32];
+		char bin[32];
+		int flagCheck = 0;
+		int i=0,j;
+		for(i=31;i>=0;i--){
+			bin_tmp[31-i] = ((dec>>i) & 1) +48;
+			
+			
+		}
+		for(i=0;i<32;i++){
+			if(flagCheck == 0){
+				if(bin_tmp[i] == 48){
+					continue;
+				}else{
+					flagCheck = 1;
+					j = 0;
+				}
+			}
+			bin[j] = bin_tmp[i];
+			j++;
+		}
+		bin[j] = '\0';
+		sprintf(ret,"%s",bin);
+		printk("Bin : %s",ret);
+	}
+	
 }
 
 static char * showTime(void){
@@ -90,12 +117,7 @@ static char * showTime(void){
 	//jiffies_to_timespec(start,&ts_start);
 	//jiffies_to_timespec(end-start,&ts_end);
 	//long time = ts_end.tv_nsec - ts_start.tv_nsec;
-	//sprintf(val,"Time : %ld (nanoseconds)",ts_end.tv_nsec);
-
-	long wt_sec = wt_end.tv_sec - wt_start.tv_sec;
-	long wt_nsec = wt_end.tv_nsec - wt_start.tv_nsec;
-	if(wt_nsec < 0) wt_nsec*=-1;
-	sprintf(val,"Time : %ld (nanoseconds)",wt_nsec);
+	
 	//jiffies_to_timespec(start,&ts_start);
 	//jiffies_to_timespec(end,&ts_end);
 	//jiffies_to_timeval(start,&tv_start);
@@ -103,34 +125,31 @@ static char * showTime(void){
 	//sprintf(val_1,"Time start : %ld (s) %ld (nanoseconds)",tv_start.tv_sec,tv_start.tv_usec);
 	//printk("%s",val);
 	//printk("%s",val_1);
+	
+	long wt_sec = wt_end.tv_sec - wt_start.tv_sec;
+	long wt_nsec = wt_end.tv_nsec - wt_start.tv_nsec;
+	if(wt_nsec < 0) wt_nsec*=-1;
+	sprintf(val,"Time : %ld (nanoseconds)",wt_nsec);
+	//printk("sec : %ld - nanoseconds : %ld",wt_sec,wt_nsec);
 	return val;
 }
 
 static long device_ioctl(struct file *filp,unsigned int cmd,unsigned long arg){
 	int ret = 0;
 	switch(cmd){
-		case CONVERT_BIN_TO_DEC:
-			if(bin != NULL){
-				dec = convertBinToDec();
-				sprintf(kernel_buf,"%d",dec);
-			}
-			else{
-				kernel_buf = "Khong co data !!!";
-			}
-			printk("Bin to Dec : %s",kernel_buf);
+		case CONVERT_OCT_TO_DEC:
+			convertOctToDec(kernel_buf);
+			printk("Oct to Dec : %s",kernel_buf);
 			printk("");
 			copy_to_user((char *)arg,kernel_buf,MEM_SIZE);
+			end = jiffies;
+			ktime_get_coarse_real_ts64(&wt_end);
 			break;
-		case CONVERT_BIN_TO_OCT:
-			if(bin != NULL){
-				kernel_buf = convertBinToOct();
-			}
-			else{
-				kernel_buf = "Khong co data !!!";
-			}
-			copy_to_user((char *)arg,kernel_buf,MEM_SIZE);
-			printk("Bin to Oct : %s",kernel_buf);
+		case CONVERT_OCT_TO_BIN:
+			convertOctToBin(kernel_buf);
+			printk("Oct to Bin : %s",kernel_buf);
 			printk("");
+			copy_to_user((char *)arg,kernel_buf,MEM_SIZE);
 			break;
 		case SHOW_TIME:
 			kernel_buf = showTime();
@@ -151,6 +170,8 @@ static struct file_operations fops = {
 };
 
 static int dev_open(struct inode *node,struct file *filp){
+	start=jiffies;
+	ktime_get_coarse_real_ts64(&wt_start);
 	printk("Open device file !!!");
 	return 0;
 }
@@ -163,11 +184,12 @@ static int dev_release(struct inode *node,struct file *filp){
 
 static ssize_t dev_write(struct file *filp,const char *user_buf,size_t len,loff_t *off){
 	printk("Write data to device file !!!");
-	bin = (char *)kmalloc(len*sizeof(char),GFP_KERNEL);
-	copy_from_user(bin,(char *)user_buf,len);
+	oct = (char *)kmalloc(len*sizeof(char),GFP_KERNEL);
+	copy_from_user(oct,(char *)user_buf,len);
 	printk("len : %d",len);
-	lenBin = len;
-	printk("bin : %s",bin);
+	lenOct = len;
+	printk("Oct : %s",oct);
+	flagWriteOct = 1;
 	printk("");
 	return len;
 }	
@@ -235,10 +257,7 @@ static void __exit exit_lab(void){
 	printk("Exit module !!!");
 	printk("");
 }
-
 module_init(init_lab);
 module_exit(exit_lab);
-MODULE_AUTHOR(DRIVER_AUTHOR);
-MODULE_DESCRIPTION(DRIVER_DESC);
 MODULE_LICENSE("GPL");
 

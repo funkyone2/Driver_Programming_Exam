@@ -6,14 +6,10 @@
 #include <sys/ioctl.h>
 
 #define MAGIC_NUMBER	234
-#define WRITE_KEY 		_IOWR(MAGIC_NUMBER,0,char *)
-#define WRITE_PLAIN_TEXT 	_IOWR(MAGIC_NUMBER,1,char *)
-#define ENCRYPT_PLAIN_TEXT	_IOWR(MAGIC_NUMBER,2,char *)
+#define WRITE_TEXT		_IOWR(MAGIC_NUMBER,0,char *)
+#define BUBBLE_SORT	 	_IOWR(MAGIC_NUMBER,1,char *)
+#define INSERT_SORT		_IOWR(MAGIC_NUMBER,2,char *)
 #define SHOW_TIME		_IOWR(MAGIC_NUMBER,3,char *)
-#define WRITE_LEN_KEY		_IOWR(MAGIC_NUMBER,4,int *)
-#define DECRYPT_PLAIN_TEXT	_IOWR(MAGIC_NUMBER,5,char *)
-
-char *ret;
 
 int openDeviceFile(char *path){
 	
@@ -31,67 +27,51 @@ int openDeviceFile(char *path){
 }
 
 void writeDeviceFile(int fd){
-	printf("Nhap du lieu : ");
+	printf("Nhap xau : ");
 	char data[1024];
 	__fpurge(stdin);
 	scanf("%[^\n]%*c",data);
-	int ret = ioctl(fd,WRITE_PLAIN_TEXT,data);
+	int ret = ioctl(fd,WRITE_TEXT,data);
 	if(ret < 0){
 		printf("Ghi du lieu khong thanh cong !!!!\n");
 	}
 	else{
 		printf("Ghi du lieu thanh cong !!!\n");
 	}
-	printf("Nhap key : ");
-	char key[1024];
-	__fpurge(stdin);
-	scanf("%[^\n]%*c",key);
-	ret = ioctl(fd,WRITE_KEY,key);
-	if(ret < 0){
-		printf("Ghi key khong thanh cong !!!!\n");
-	}
-	else{
-		printf("Ghi key thanh cong !!!\n");
-	}
-	int len = strlen(key);
-	ret = ioctl(fd,WRITE_LEN_KEY,&len);
-	if(ret < 0){
-		printf("Ghi len key khong thanh cong !!!!\n");
-	}
-	else{
-		printf("Ghi len key thanh cong !!!\n");
-	}
 }
 
 
-
-void maHoaThayThe(int fd){
-	char *temp = (char *)malloc(1024*sizeof(char));
-	ioctl(fd,ENCRYPT_PLAIN_TEXT,temp);
-	printf("%s\n",temp);
-	free(temp);
-}
-
-
-
-
-void giaiMaThayThe(int fd){
-	ret = (char *)malloc(1024*sizeof(char));
-	int f = ioctl(fd,DECRYPT_PLAIN_TEXT,ret);
-	if(f == 0){
-		printf("Plain Text : %s\n",ret);
+void bubbleSort(int fd){
+	char *ret = (char *)malloc(1024*sizeof(char));
+	int f = ioctl(fd,BUBBLE_SORT,ret);
+	if(f<0){
+		printf("Loi !!!!\n");
 	}else{
+		printf("Sap xep noi bot : ");
+		printf("%s\n",ret);
+	}
+	free(ret);
+}
+
+void insertSort(int fd){
+	char *ret = (char *)malloc(1024*sizeof(char));
+	int f = ioctl(fd,INSERT_SORT,ret);
+		if(f<0){
+		printf("Loi !!!!\n");
+	}else{
+		printf("Sap xep chen : ");
 		printf("%s\n",ret);
 	}
 	free(ret);
 }
 
 void showTime(int fd){
-	ret = (char *)malloc(1024*sizeof(char));
+	char *ret = (char *)malloc(1024*sizeof(char));
 	int f = ioctl(fd,SHOW_TIME,ret);
-	if(f == 0){
-		printf("Time :\n%s\n",ret);
+	if(f<0){
+		printf("Loi !!!!\n");
 	}else{
+		printf("So sanh thoi gian :\n");
 		printf("%s\n",ret);
 	}
 	free(ret);
@@ -106,10 +86,10 @@ void menu(int fd){
 	while(1){
 		printf("************************\n");
 		printf("Vui long chon chuc nang:\n");
-		printf("1. Nhap xau ro va khoa\n");
-		printf("2. Ma hoa xau\n");
-		printf("3. Giai ma xau\n");
-		printf("4. Xem thoi gian ma hoa va giai ma\n");
+		printf("1. Nhap mot xau\n");
+		printf("2. Sap xep xau theo thuat toan noi bot\n");
+		printf("3. Sap xep xau theo thuat toan chen\n");
+		printf("4. So sanh thoi gian thuc thi\n");
 		printf("5. Ket thuc\n");
 		scanf("%d",&sl);
 		switch(sl){
@@ -117,10 +97,10 @@ void menu(int fd){
 				writeDeviceFile(fd);
 				break;
 			case 2:
-				maHoaThayThe(fd);
+				bubbleSort(fd);
 				break;
 			case 3:
-				giaiMaThayThe(fd);
+				insertSort(fd);
 				break;
 			case 4:
 				showTime(fd);

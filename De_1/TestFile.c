@@ -97,7 +97,7 @@ void menu(int fd){
 		printf("Vui long chon chuc nang:\n");
 		printf("1. Nhap hai xau\n");
 		printf("2. Chuyen xau 1 sang chu thuong\n");
-		printf("3. Chuyen xau 2 sang chu hoa\n");
+		printf("3. Chuyen xau 1 sang chu hoa\n");
 		printf("4. Chuan hoa xau 1\n");
 		printf("5. Noi 2 xau\n");
 		printf("6. Ket thuc\n");

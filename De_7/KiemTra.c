@@ -9,6 +9,7 @@
 #include <linux/string.h>
 #include <linux/jiffies.h>
 #include <linux/timekeeping.h>
+#include <linux/time.h>
 
 #define DRIVER_AUTHOR	"Pham Hung"
 #define DRIVER_DESC	"Kiem Tra"
@@ -34,10 +35,10 @@ static int flag_encrypt = 0,flag_buf=0,flagKey=0;
 static char *ret;
 static int dev_open(struct inode *,struct file *);
 static int dev_release(struct inode *,struct file *);
-static unsigned long startTimeEncrypt;
-static unsigned long stopTimeEncrypt;
-static unsigned long startTimeDecrypt;
-static unsigned long stopTimeDecrypt;
+static struct timespec64 wt_start_encrypt;
+static struct timespec64 wt_end_encrypt;
+static struct timespec64 wt_start_decrypt;
+static struct timespec64 wt_end_decrypt;
 
 static int encrypt(char *ret){
 	if(flag_buf == 0){
@@ -49,14 +50,16 @@ static int encrypt(char *ret){
 		if(flagKey==0) return 2;
 		int len = strlen(kernel_buf);
 		int i;
-		startTimeEncrypt = jiffies;
+		
 		for(i=0;i<len;i++){
 			encrypt_text[i] = kernel_buf[i]^key[i%lenKey];
 		}
-		stopTimeEncrypt  =jiffies;
+		
 		flag_encrypt = 1;
 		char temp[50] = "Ma hoa thanh cong !!!";
 		sprintf(ret,"%s",temp);
+		long after = jiffies+15;
+		while(jiffies<=after);
 		return 0;
 	}
 }
@@ -78,24 +81,25 @@ static int decrypt(char *ret){
 			
 			int len = strlen(kernel_buf);
 			int i;
-			startTimeDecrypt = jiffies;
+			
 			for(i=0;i<len;i++){
 				*(ret+i) = encrypt_text[i]^key[i%lenKey];
 
 			}
-			stopTimeDecrypt = jiffies;
+			
 		}
-		
+		long after = jiffies+15;
+		while(jiffies<=after);
 		return 0;
 	}
 }
 
 static void showTime(char *ret){
-	unsigned long timeEncrypt = stopTimeEncrypt - startTimeEncrypt;
-	unsigned long timeDecrypt = stopTimeDecrypt - startTimeDecrypt;
-	int uSecEncrypt = jiffies_to_usecs(timeEncrypt);
-	int uSecDecrypt = jiffies_to_usecs(timeDecrypt);
-	sprintf(ret,"Time Encrypt : %ld (microseconds) \n Time Decrypt : %ld (microseconds) \n",timeEncrypt,timeDecrypt);
+	long wt_encrypt = wt_end_encrypt.tv_nsec - wt_start_encrypt.tv_nsec;
+	long wt_decrypt = wt_end_decrypt.tv_nsec - wt_start_decrypt.tv_nsec;
+	if(wt_encrypt<0) wt_encrypt*=-1;
+	if(wt_decrypt<0) wt_decrypt*=-1;
+	sprintf(ret,"Time Encrypt : %ld (microseconds) \n Time Decrypt : %ld (microseconds) \n",wt_encrypt,wt_decrypt);
 	
 }
 
@@ -122,16 +126,20 @@ static long device_ioctl(struct file *filp,unsigned int cmd,unsigned long arg){
 			flag_buf = 1;			
 			break;
 		case ENCRYPT_PLAIN_TEXT:
+			ktime_get_coarse_real_ts64(&wt_start_encrypt);
 			retrn = encrypt(ret);
 			printk("Encrypt : %s",encrypt_text);
 			copy_to_user((char *)arg,ret,MEM_SIZE);
+			ktime_get_coarse_real_ts64(&wt_end_encrypt);
 			printk("");
 			break;
 		case DECRYPT_PLAIN_TEXT:
+			ktime_get_coarse_real_ts64(&wt_start_decrypt);
 			retrn = decrypt(ret);
 			copy_to_user((char *)arg,ret,MEM_SIZE);
 			printk("decrypt : %s",ret);
 			printk("");
+			ktime_get_coarse_real_ts64(&wt_end_decrypt);
 			break;
 		case SHOW_TIME:
 			showTime(ret);
